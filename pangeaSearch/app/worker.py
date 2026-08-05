@@ -5,9 +5,12 @@ Requires Redis (same instance as Sidekiq is fine; uses DB index 1 by default).
 On macOS, RQ's default fork worker crashes with Objective-C / torch / Whisper
 (objc_initializeAfterForkError → "Python quit unexpectedly"). We use
 SimpleWorker there (no fork). Linux keeps the normal Worker.
+
+Docker: set RQ_SIMPLE_WORKER=true so fork is avoided even on Linux (safer with torch).
 """
 
 import logging
+import os
 import platform
 import sys
 
@@ -22,11 +25,19 @@ logging.basicConfig(
 )
 
 
+def _use_simple_worker() -> bool:
+    flag = os.environ.get("RQ_SIMPLE_WORKER", "").strip().lower()
+    if flag in ("1", "true", "yes", "on"):
+        return True
+    if flag in ("0", "false", "no", "off"):
+        return False
+    return platform.system() == "Darwin"
+
+
 def main() -> None:
     settings = get_settings()
     redis_conn = Redis.from_url(settings.redis_url)
-    # macOS + ML stacks (torch/whisper) cannot safely fork after objc init.
-    worker_cls = SimpleWorker if platform.system() == "Darwin" else Worker
+    worker_cls = SimpleWorker if _use_simple_worker() else Worker
     print(
         "pangeaSearch RQ worker listening on queue=%r redis=%r whisper=%r embed=%r mode=%s"
         % (

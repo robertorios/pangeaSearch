@@ -1,0 +1,38 @@
+# Local / learning image for pangeaSearch (API + worker share this image).
+# Build: docker compose build
+# Run:   docker compose up
+
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      build-essential \
+      curl \
+      ffmpeg \
+      git \
+      libgomp1 && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    # Model caches under volume-mounted /app/data
+    HF_HOME=/app/data/hf_cache \
+    TORCH_HOME=/app/data/torch_cache \
+    XDG_CACHE_HOME=/app/data/xdg_cache
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+COPY app ./app
+
+# App code expects to import as package `app`
+ENV PYTHONPATH=/app
+
+EXPOSE 3003
+
+# Default: API. Worker overrides command in compose.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3003"]

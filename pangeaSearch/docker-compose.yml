@@ -1,0 +1,70 @@
+# pangeaSearch — API + RQ worker on Mac Docker.
+#
+# Host services (not in this compose):
+#   - redis-server  → REDIS_URL host.docker.internal:6379/1
+#   - ollama serve  → GEMMA_API_URL host.docker.internal:11434 (optional)
+#
+# Chroma + temp downloads + model cache live on ./data (volume).
+#
+#   cd pangeaSearch
+#   # stop host uvicorn :3003 and python -m app.worker first
+#   docker compose up --build
+#
+# Health: curl -s http://127.0.0.1:3003/up
+
+services:
+  pangea-search-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: testimony-pangea-search:local
+    container_name: pangea-search-api
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    environment:
+      CHROMA_PATH: /app/data/chroma
+      MEDIA_DOWNLOAD_DIR: /app/data/downloads
+      REDIS_URL: redis://host.docker.internal:6379/1
+      GEMMA_API_URL: http://host.docker.internal:11434
+      HF_HOME: /app/data/hf_cache
+      TORCH_HOME: /app/data/torch_cache
+      XDG_CACHE_HOME: /app/data/xdg_cache
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3003/up"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  pangea-search-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: testimony-pangea-search:local
+    container_name: pangea-search-worker
+    depends_on:
+      - pangea-search-api
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - .env
+    environment:
+      CHROMA_PATH: /app/data/chroma
+      MEDIA_DOWNLOAD_DIR: /app/data/downloads
+      REDIS_URL: redis://host.docker.internal:6379/1
+      GEMMA_API_URL: http://host.docker.internal:11434
+      RQ_SIMPLE_WORKER: "true"
+      HF_HOME: /app/data/hf_cache
+      TORCH_HOME: /app/data/torch_cache
+      XDG_CACHE_HOME: /app/data/xdg_cache
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -76,3 +76,19 @@ Example (skip Whisper, test RQ → embed → Chroma):
 | pangeaMedia | 3001 |
 | pangeaConversations | 3002 |
 | **pangeaSearch** | **3003** |
+
+## Docker (API + worker)
+
+See **`DOCKER.md`**. Short form:
+
+```bash
+# redis-server (and optional ollama serve) on the Mac
+cd pangeaSearch
+docker compose up --build -d
+curl http://127.0.0.1:3003/up
+```
+
+- **api:** `pangea-search-api` → :3003  
+- **worker:** `pangea-search-worker` (RQ Process)  
+- **Chroma / caches:** volume `./data`  
+- **Redis / Ollama:** host via `host.docker.internal`  
